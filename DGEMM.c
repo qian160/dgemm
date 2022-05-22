@@ -1,5 +1,6 @@
 //use gcc -lpthread -fopenmp -mavx
 
+//go to sleep now...modify it tomorrow
 //we use the rule of row combination: row k of C is equal to some combinations of B's rows 
 /*
 
