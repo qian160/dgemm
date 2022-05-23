@@ -1,21 +1,51 @@
-//use gcc -lpthread -fopenmp -mavx
-
-//go to sleep now...modify it tomorrow
-//we use the rule of row combination: row k of C is equal to some combinations of B's rows 
 /*
+		use gcc -lpthread -fopenmp -mavx
 
-| a11 a12 a13 a14 a15 |    | b11 b12 b13 b14 b15 |      |a11 * row1 of B + a12 * row2 of B + a13 * row 3 of B + a14 * row 4 of B + a13 * row 5 of B |
-| a21 a22 a23 a24 a25 |    | b21 b22 b23 b24 b25 |	|...											    |
-| a31 a32 a33 a34 a35 | *  | b31 b32 b33 b34 b35 |  =   |...											    |
-| a41 a42 a43 a44 a45 |    | b41 b42 b43 b44 b45 |	|...											    |
-| a51 a52 a53 a54 a55 |    | b51 b52 b53 b54 b55 |	|...											    |
-	   A			      B                       						C
+idea from P&H's COD book, MIPS 5th edition.However some explanations on the book seems to be wrong...
+
+First I believe it must be B * A rather than A * B!!!! And the index also fails
+
+Let's first consider the problem: What are the datas that will effct the value of cij?
+
+The answer is obvious:all the datas in row i of A and column j of B
+
+Take b11 as an example.
+Since `b11` will effect both c11 c12 c13 c14..., we could pack it up, copy it 4 times and multiply it to a11, a12, a13, a14 all
+(that's why __mm256_broadcast_sd is used)
+
+we use the rule of row combination: row k of C is equal to some row combinations of B
+x is used to unroll the loop
+
+
+          K ---->		     I  ---->			 I  ---->
+   J	| a11 a12 a13  |        K   | b11 b12 b13 |         J	|a11 * row1 of B + a12 * row2 of B + a13 * row 3 of B |
+   |	| a21 a22 a23  |    *   |   | b21 b22 b23 |	=   |	|...						      |
+   V	| a31 a32 a33  |        V   | b31 b32 b33 |  	    V	|...		  				      |
+									    
+	       B		   	   A                       			 C
+	     K + NJ		       I + 4X + NK				    I + 4X + NJ
+	  
+These are the datas that will be used during a K-loop:
+
+	  BBBB   ------------------------- ----------------------------------------> 	 BBBB multiply AAAA to produce c1
+	 \   /				  |					   |
+	  \ / 				  |					  c1   c2   c3   c4   
+	  |B B B B ...	|		|AAAA AAAA AAAA AAAA	...	|	|CCCC CCCC CCCC CCCC ...	|	c on these location will be affected in this loop
+	  |		|		|				|	|		    		|
+	  |		|		|				|	|		    		|
+	 	 B				A			  			C
+After K++:
+ 
+	  |	   B B B B |		|			...	|	|CCCC CCCC CCCC CCCC ...	|	we are still working on the same cs, since b is still on the old row
+	  |		   |		|AAAA AAAA AAAA AAAA    ...	|	|				|	
+	  |		   |		|				|	|		    		|
+	 	 B				A			  			C
 */
 #include <x86intrin.h>
 #include<stdio.h>
 #include<time.h>
 #define UNROLL (4)		//loop unroll, reduce loop times to avoid penalty when branch prediction fails
-#define BLOCKSIZE 32		//keep the datas we need always in cache, so do small steps
+#define BLOCKSIZE 32		//do small steps to keep the data we are currently processing always in cache
 #define size 512
 void do_block (int n, int si, int sj, int sk,double *A, double *B, double *C)
 {
@@ -24,12 +54,12 @@ void do_block (int n, int si, int sj, int sk,double *A, double *B, double *C)
 	{
 	    __m256d c[4];
 	    for ( int x = 0; x < UNROLL; x++ )
-		c[x] = _mm256_load_pd(C+i+x*4+j*n);	/* c[x] = C[i][j], */
-	    for( int k = sk; k < sk+BLOCKSIZE; k++ )
-	    {
-		__m256d b = _mm256_broadcast_sd(B+k+j*n);		/* b = B[k][j] */
+		c[x] = _mm256_load_pd(C+i+x*4+j*n);	
+	    for( int k = sk; k < sk+BLOCKSIZE; k++ )		//k++ doesn't affect c, we are still working on the old c.
+	    {							// But A will go to a new row, while B just go to the next column, since its weight of K is 1
+		__m256d b = _mm256_broadcast_sd(B+k+j*n);		/*Four copies of single element*/
 		for (int x = 0; x < UNROLL; x++)
-		    c[x] = _mm256_add_pd(c[x], _mm256_mul_pd(_mm256_load_pd(A+n*k+x*4+i), b));/* c[x]+=A[i][k]*b */
+		    c[x] = _mm256_add_pd(c[x], _mm256_mul_pd(_mm256_load_pd(A+n*k+x*4+i), b));		//C and A use j*n ,so they are acting vertically
 	    }
 	for ( int x = 0; x < UNROLL; x++ )
 	    _mm256_store_pd(C+i+x*4+j*n, c[x]);		/* C[i][j] = c[x] */
@@ -44,14 +74,15 @@ void dgemm (int n, double* A, double* B, double* C)
 		    do_block(n, si, sj, sk, A, B, C);
 }
 int main(){
-	asm volatile(".align 32\n");
-	double a[size][size] __attribute__ ((aligned (32))),
-	b[size][size] __attribute__ ((aligned (32))),
-	c[size][size] __attribute__ ((aligned (32)));
+	
+	double a[size][size] __attribute__ ((aligned (32))),		//vmovapd needs the data to be aligned
+	       b[size][size] __attribute__ ((aligned (32))),
+	       c[size][size] __attribute__ ((aligned (32)));
+	
 	for(int i=0;i<size;i++)
 	    for(int j=0;j<size;j++)
 	    {
-	        a[i][j]=i*size+j+1;
+	        a[i][j]=i*size+j+1;		//initialize the values
 	        b[i][j]=a[i][j];
 	        c[i][j]=0;
 	    }
