@@ -31,9 +31,9 @@ These are the datas that will be used during a K-loop:
 	 	 B				A			  			C
 After K++:
  
-	  |	   B B B B |		|			...	|	|CCCC CCCC CCCC CCCC ...	|	we are still working on the same cs, since b is still on the old row
-	  |		   |		|AAAA AAAA AAAA AAAA    ...	|	|				|	
-	  |		   |		|				|	|		    		|
+	  | ...	   B B B B ... |	|			...	|	|CCCC CCCC CCCC CCCC ...	|	we are still working on the same cs, since b is still on the old row
+	  |		       |	|AAAA AAAA AAAA AAAA    ...	|	|				|	
+	  |		       |	|				|	|		    		|
 	 	 B				A			  			C
 */
 #include <x86intrin.h>
