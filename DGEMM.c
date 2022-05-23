@@ -1,11 +1,12 @@
 /*
 		use gcc -lpthread -fopenmp -mavx
 idea from P&H's COD book, MIPS 5th edition.However some explanations on the book seems to be wrong...
-First I believe it must be B * A rather than A * B!!!! And the index also fails
-Let's first consider the problem: What are the datas that will effct the value of cij?
+First I strongly believe it must be B * A rather than A * B!!!! And the index also fails
+
+Let's first consider the question: What are the datas that will effct the value of cij?
 The answer is obvious:all the datas in row i of A and column j of B
 
-Take b11 as an example.
+Take b11 as an detailed example.
 Since `b11` will effect both c11 c12 c13 c14..., we could pack it up, copy it 4 times and multiply it to a11, a12, a13, a14 all
 (that's why __mm256_broadcast_sd is used)
 
