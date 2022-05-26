@@ -1,23 +1,21 @@
 /*
 		use gcc -lpthread -fopenmp -mavx
 idea from P&H's COD book, MIPS 5th edition.However some explanations on the book seems to be wrong...
-First I strongly believe it must be B * A rather than A * B!!!! And the index also fails
+I strongly believe it must be B * A rather than A * B!!!! And the comment of the matrix index in the book also fails
 
-Let's first consider the question: What are the datas that will effct the value of cij?
-The answer is obvious:all the datas in row i of A and column j of B
+Let's first consider the question: What are the datas that will affect the value of cij?
+The answer is easy: all the datas in row i of A and column j of B
 
-Take b11 as an detailed example.
-Since `b11` will effect both c11 c12 c13 c14..., we could pack it up, copy it 4 times and multiply it to a11, a12, a13, a14 all
-(that's why __mm256_broadcast_sd is used)
+Take b11 as an further example.
+Since `b11` will affect both c11 c12 c13 c14..., we could pack it up, copy it 4 times and multiply it to a11, a12, a13, a14 them all at one time
+(that's why __mm256_broadcast_sd is applied to b,which also indicates why it should be B * A)
 
-we use the rule of row combination: row k of C is equal to some row combinations of B
-x is used to unroll the loop
+we use the rule of row combination for calculation: row k of C is equal to some row combinations of B
 
           K ---->		     I  ---->			 I  ---->
    J	| a11 a12 a13  |        K   | b11 b12 b13 |         J	|a11 * row1 of B + a12 * row2 of B + a13 * row 3 of B |
    |	| a21 a22 a23  |    *   |   | b21 b22 b23 |	=   |	|...						      |
-   V	| a31 a32 a33  |        V   | b31 b32 b33 |  	    V	|...		  				      |
-									    
+   V	| a31 a32 a33  |        V   | b31 b32 b33 |  	    V	|...		  				      |		
 	       B		   	   A                       			 C
 	     K + NJ		       I + 4X + NK				    I + 4X + NJ
 	  
