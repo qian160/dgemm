@@ -49,14 +49,14 @@ void do_block (int n, int si, int sj, int sk,double *A, double *B, double *C)
 	    __m256d c[4];
 	    for ( int x = 0; x < UNROLL; x++ )
 		c[x] = _mm256_load_pd(C+i+x*4+j*n);	
-	    for( int k = sk; k < sk+BLOCKSIZE; k++ )		//k++ doesn't affect c, we are still working on the old c.
-	    {							// But A will go to a new row, while B just go to the next column, since its weight of K is 1
-		__m256d b = _mm256_broadcast_sd(B+k+j*n);		/*Four copies of single element*/
+	    for( int k = sk; k < sk+BLOCKSIZE; k++ )		
+	    {							
+		__m256d b = _mm256_broadcast_sd(B+k+j*n);		/*the effect of broadcast: a -> aaaa*/
 		for (int x = 0; x < UNROLL; x++)
-		    c[x] = _mm256_add_pd(c[x], _mm256_mul_pd(_mm256_load_pd(A+n*k+x*4+i), b));		//C and A use j*n ,so they are acting vertically
+		    c[x] = _mm256_add_pd(c[x], _mm256_mul_pd(_mm256_load_pd(A+n*k+x*4+i), b));		
 	    }
 	for ( int x = 0; x < UNROLL; x++ )
-	    _mm256_store_pd(C+i+x*4+j*n, c[x]);		/* C[i][j] = c[x] */
+	    _mm256_store_pd(C+i+x*4+j*n, c[x]);		
 	}
 }
 void dgemm (int n, double* A, double* B, double* C)
@@ -76,7 +76,7 @@ int main(){
 	for(int i=0;i<size;i++)
 	    for(int j=0;j<size;j++)
 	    {
-	        a[i][j]=i*size+j+1;		//initialize the values
+	        a[i][j]=i*size+j+1;		//initialize the values, with some simple values
 	        b[i][j]=a[i][j];
 	        c[i][j]=0;
 	    }
